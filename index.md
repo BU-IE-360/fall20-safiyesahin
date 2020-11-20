@@ -6,4 +6,4 @@
 ## Homework 1 (20.11.2020)
 [Here](files/360-Homewrok1.html) is the visualization of my datasets.
 
-[Here](files/Homework1code.html) my related code.
+[Here](https://bu-ie-360.github.io/fall20-safiyesahin/files/360HW1-code) my related code.
