@@ -5,4 +5,5 @@
 
 ## Homework 1 (20.11.2020)
 [Here](files/360-Homewrok1.html) is the visualization of my datasets.
-[Here](files/360-Homewrok1.rmd) my related code
+
+[Here](files/360-Homewrok1.rmd) my related code.
