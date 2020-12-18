@@ -10,6 +10,6 @@
 
 
 ## Homework 2 (18.12.2020)
-[Here](files/360-hw2.html) is the my HW2.
+[Here](files/360hw2.html) is the my HW2.
 
 [Here](https://bu-ie-360.github.io/fall20-safiyesahin/files/360HW2.R) my related code.
