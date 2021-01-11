@@ -13,3 +13,9 @@
 [Here](files/360hw2.html) is the my HW2.
 
 [Here](https://bu-ie-360.github.io/fall20-safiyesahin/files/360HW2.R)  is my related code.
+
+## Homework 3 (10.01.2021)
+[Here](files/360-HW3.html) is the my HW3.
+
+[Here](https://bu-ie-360.github.io/fall20-safiyesahin/files/360-HW3.R)  is my related code.
+
