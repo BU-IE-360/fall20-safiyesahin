@@ -1,26 +1,3 @@
----
-title: "360-HW3"
-author: "Safiye Şahin"
-date: "10 01 2021"
-output: 
-  html_document:
-    toc :  true
----
-
-```{r setup, include=FALSE , warning=FALSE, message = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-## Introduction
-For this assignment,  8 different data sets are received  from the [Electronic Data Delivery System](https://evds2.tcmb.gov.tr/) , covering the years between 2013-2020 and containing information on a monthly basis.The main purpose of the study was to estimate the total of 2020 housing sales data in Turkey in December, Other data collected include dollar and euro exchange rates between these years, the possibility of buying or building a house, the financial situation of the household, the number of unemployed people expectation (in the next 12 months), the possibility of buying a car (in the next 12 months) and the weighted interest rate applied to loans by banks.
-
-
-
-
-## Data
-The first part of the data block and time series object data can be examined below. After examining the movement of the housing sales data on the graph , the log of the data was taken to prevent the increasing variance and continued as such.
-```{r  echo=FALSE, warning=FALSE, message = FALSE}
-
 library(readxl)
 library(TSstudio)
 library(feasts)
@@ -54,14 +31,7 @@ plot(dataset_log,xlab="Year", ylab="Total Sales", main= "Total housing sales of 
 ts_all.data <- ts( all.data, frequency = 12, start=c(2013,1))
 dataset_log2 <- log(ts_all.data)
 plot(zoo(ts_all.data), main= "Graph of the all data")
-```
 
-
-
-## Correlation 
-
-A correlation matrix was made to see how relevant the data, thought to be related to total home sales,  but we did not find a limit that closely resembles our actual data.
-```{r include=FALSE, warning=FALSE, message = FALSE}
 
 cor.test(x = all.data$Total_Sales, y = all.data$USD, method = "pearson", alternative = "greater")
 cor.test(x = all.data$Total_Sales, y = all.data$EURO, method = "pearson", alternative = "greater")
@@ -72,8 +42,6 @@ cor.test(x = all.data$Total_Sales, y = all.data$car, method = "pearson", alterna
 
 
 
-```
-```{r echo=FALSE, warning=FALSE, message = FALSE}
 ggpairs(all.data)
 ggcorrplot(corr = cor(all.data),
            hc.order = TRUE,
@@ -82,11 +50,7 @@ ggcorrplot(corr = cor(all.data),
            title = "Correlation Matrix",
            colors = c("steelblue4","darkseagreen2","ivory3"),
            legend.title = "Correlation")
-```
 
-
-
-```{r include=FALSE, warning=FALSE, message = FALSE}
 sales=data.table(log_sales=as.numeric(dataset_log))
 #trend:
 sales[,trend:=1:.N]
@@ -96,14 +60,9 @@ acf(as.numeric(ts_dataset)) #lag 12 autocorrelation
 #add month information
 month=seq(1,12,by=1)
 sales=cbind(sales,month)
-```
 
 
-## Regression and Examination of residuals
 
-While performing the regression analysis of the available data, firstly the moon factor was added. The trend in residuals was observed and the trend factor was added in the next step. Later, the boxplot of the data was drawn, outliers were determined and a relevant outlier data was added.
-
-```{r echo= FALSE, warning=FALSE, message = FALSE}
 fit1 <- lm(log_sales~-1+as.factor(month), data = sales)
 summary(fit1)
 plot(fit1$residual)
@@ -124,11 +83,8 @@ plot(fit3$residual)
 checkresiduals(fit2,lag=12)
 checkresiduals(fit3,lag=12)
 
-```
 
-While the residual standard error decreases in the first two steps, it is seen that the added outlier data increases this error slightly, and when the residuals of the model in the second step and the model in the third step are compared, it appears that the added outlier data increases the p-value and it is decided to remain in the model for now.
 
-```{r include=FALSE, warning=FALSE, message = FALSE}
 sales[,lag1:=0]
 sales[ month ==1 ,lag1:= 1]
 sales[,lag3:=0]
@@ -138,13 +94,7 @@ fit4 <- lm(log_sales~ -1 +as.factor(month)+ trend + lag1+ lag3, data = sales)
 summary(fit4)
 plot(fit4$residual)
 checkresiduals(fit4,lag=12) #kontrol et ve kullanma improve etmiyor
-```
 
-
-The USD ratio with the highest correlation is added to the model as an independent variable as the "money" variable, but it does not seem to be very important in the model. In order to make it more important, the distribution of residuals according to the money variable is examined in table 2 and this variable is added to the dataset in three parts as a result of the some  manipulation, although a decrease in the res. std.error  of the obtained model is observed, money variables still do not seem important.Therefore, it will not be used in other stages of the model.
-
-
-```{r echo=FALSE, warning=FALSE, message = FALSE}
 sales[,money:= all.data$USD]
 
 fit4 <- lm(log_sales~-1 + as.factor(month)+ trend +outliers+money, data = sales)
@@ -163,11 +113,7 @@ summary(fit5)
 plot(sales[,list(money,residual=fit5$residual)],sub= "table 3")
 plot(fit5$residual)
 checkresiduals(fit5,lag=12)
-```
 
-After examining all the data that can be added to the model as an independent variable, the best developed version was selected and some of the improvements made are shown below. However, when residuals are checked later, it is seen that the desired success is still not achieved in the autocorrelation function.
-
-```{r echo=FALSE, warning=FALSE, message = FALSE}
 sales[, unemp:= all.data$unemp]
 sales[, car:= all.data$car]
 sales[, int:= all.data$interest]
@@ -188,10 +134,7 @@ summary(fit8)
 plot(fit8$residual)
 checkresiduals(fit8)
 
-```
 
-The lag of residuels was added to the model to improve the correlation function.In addition, outlier data, which was considered insignificant, was removed from the model at this stage.
-```{r echo=FALSE, warning=FALSE, message = FALSE}
 #adding lag1 
 sales_new <- sales[-1,]
 lagnew <- lag( residuals(fit8))
@@ -206,11 +149,9 @@ fit9=lm( log_sales~-1 + as.factor(month)+ trend +  unemp+int+car+ lagnew, sales_
 summary(fit9)
 plot(fit9$residual)
 checkresiduals(fit9)
-```
 
 
-Quantile variables are added to obtain corrections in the residual graph examined at each stage and the resulting model is both reduced res. std. errors and provided a better visual for residuals. And this is the final version of our model.
-```{r echo=FALSE, warning=FALSE, message = FALSE}
+
 plot(sales_new[,list(unemp,residual=fit9$residual)])
 sales_new[, residuals_with_unmep:=fit9$residuals]
 sales_new[, q5:= quantile(residuals_with_unmep,0.05)]
@@ -222,11 +163,7 @@ summary(fit9)
 plot(fit9$residual)
 plot(sales_new[,list(unemp,residual=fit9$residual)])
 checkresiduals(fit9)
-```
 
-## Fitted Values
-
-```{r echo=FALSE, warning=FALSE, message = FALSE}
 #get fitted values
 
 
@@ -277,10 +214,3 @@ ggplot() +
   ylab('sales') +
   ggtitle("Graph of sales over time")+
   scale_color_manual(values = cols)
-
-```
-
-## Counclusion
-With the step-by-step improvements in the final model, the  Residual standard error, which was 0.224 in the first step, was reduced to 0.1072 in the last step. Since the model has been progressed by subtracting the intercept since the first stage, evaluating the adjusted r square value will not mean much since it may be misleading. Looking at the data entering the model, we see that  outside the number of unemployed people expectation (in the next 12 months), the possibility of buying a car (in the next 12 months) are important, but these are kept in the model because they reduce the error. In addition, when the residual plot is examined step by step, it can be seen that it changes shape towards the end and consists of linearly radiating points around zero as desired.Finally, when testing whether the residuals are serially correalted, we can reject the correlation as desired since p-value = 0.4241, and conclude that the model we have is a good model.
-*According to the estimates of this model, the total house sales in December 2020 is found to be 139523.3~ 139523*
-
