@@ -1,0 +1,188 @@
+---
+title: "360HW4"
+author: "Safiye Şahin"
+date: "28 01 2021"
+output: 
+  html_document:
+    toc :  true
+---
+## Introduction
+For this assignment, hourly electricity consumption of Turkey is received  from the [Electronic Data Delivery System](https://seffaflik.epias.com.tr/transparency/tuketim/gerceklesen-tuketim/gercek-zamanli-tuketim.xhtml) , covering the period from 01.01.2017 to 08.01.2021 and containing information on a hourly basis.And since data manipulation was required to be done on daily data, not hourly, these data were turned into a daily mean consumption in excel file.The main purpose of the study was to estimate the total consumption forecast results on the upcoming 14 days (from 9th of January to
+23rd of January in 2021).At this stage, it is important to make the data stationary.
+To say that a time series is stationary, it must be guaranteed that its features are not time dependent. In order to guarantee this, the series must confirm the following items:
+** The mean value should be constant (no trend)**
+** Its variance should not increase over time**
+** The seasonal effect should be minimized.**
+So, for example, a series with trend and seasonality components cannot be called a time series. This feature is important as it will be difficult to predict the movements of non-stationary time series in the long term and it is desirable that the series to be predicted should be stationary. This study includes the steps of making the data obtained from the address stationary.
+
+```{r setup, include=FALSE , warning=FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fpp)
+library(forecast)
+library(readxl)
+library(lubridate)
+library(dplyr)
+library(scales)
+library(data.table)
+library(ggplot2)
+data <- read_excel("C:/Users/Safiye/Desktop/360HW4.xlsx")
+#View(data)
+```
+
+## Data Visualizations
+It is necessary to determine a frequency in order to transform the received data into time series. In order to choose this frequency range, the autocrelation function of the data can be examined for different periods.
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+ggAcf(data$consumption, lag.max = 365*2,color="salmon1")+
+  ggtitle("Autocorrelation plot of 2-years portion of data")+
+  ylab("ACF")+
+  theme(legend.position = "topleft")+
+  theme_gray()
+ggAcf(data$consumption, lag.max = 7*4, color="salmon1")+
+  ggtitle("Autocorrelation plot of 1 month portion of data")+
+  ylab("ACF")+
+  theme_gray()
+tsdata<-ts(data$consumption,start=c(2017,0),end=c(2021,8),frequency= 365)
+```
+
+Considering the model trials in the future steps and the graphics in this step, a time series with a frequency of 365 was created and the study was carried out on this.
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+autoplot(tsdata,color="salmon1")+
+  ggtitle("Plot of Daily Mean Consumption Time Series Data")+
+  ylab("Mean Consumption")+
+  theme(legend.position = "topleft")+
+  theme_gray()
+ggseasonplot(tsdata)
+```
+
+In order to capture stationarity, when the time series is decomposed as multiplicative and additive, it is observed that it would be better to use multiplicative directly instead of using the additive model by taking a log, and the data was decomposed as multiplicative.
+## Decomposition Part
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+data_multip<-decompose(tsdata,type="multiplicative")
+#data_add<-decompose(lag(tsdata),type="additive")
+#data_add<-decompose(tsdata,type="additive")
+plot(data_multip,col="salmon1")
+#plot(data_add)
+
+```
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+deseasonalized<-tsdata/data_multip$seasonal
+autoplot(deseasonalized,color="salmon1")+
+  ggtitle("Plot of Daily Mean Consumption Deseasonalized Time Series Data")+
+  ylab("Mean Consumption")+
+  theme(legend.position = "topleft")+
+  theme_gray()
+ggAcf(deseasonalized,lag.max=7*4,color="salmon1")+
+  ggtitle("Autocorrelation plot of deseasonalized data")+
+  ylab("ACF")+
+  theme(legend.position = "topleft")+
+  theme_gray()
+detrend<-deseasonalized/data_multip$trend
+random<- data_multip$random
+autoplot(random,color="salmon1")+
+  ggtitle("Plot of Random of Decomposed Time Series Data")+
+  ylab("Random")+
+  theme(legend.position = "topleft")+
+  theme_gray()
+
+#View(random)
+```
+
+## ARIMA Part
+ The autocorrelation and partial autocorrelation functions of the latest data(random) were examined and ARIMA was used to fit a model on them. When the shape in autocorrelation is examined, it is seen that it is necessary to create an autoregresive model. Also, to decide on the order of this, the partial version is examined. After that, the results from a few fit trials are given below, and then the last fit is created with the order value that comes with the auto.arima function in order to find a better value.
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+
+ggAcf(random,na.action = na.pass,lag.max=7*4,color="salmon1")+
+  ggtitle("Autocorrelation plot of random")+
+  ylab("ACF")+
+  theme(legend.position = "topleft")+
+  theme_gray()
+ggPacf(random,na.action = na.pass,lag.max=7*4,color="salmon1")+
+  ggtitle("Partial autocorrelation plot of random")+
+  ylab("PACF")+
+  theme(legend.position = "topleft")+
+  theme_gray()
+
+```
+
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+
+arima(random, order=c(2,0,0))
+arima(random, order = c(3, 0, 1))
+arima(random, order=c(3,1,2))
+
+```
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+auto.arima(random)
+```
+
+## Model Fitting
+```{r echo =FALSE, warning=FALSE, message = FALSE}
+model <- arima(random, order=c(5,1,2))
+model_fitted <- random - residuals(model)
+#View(model_fitted)
+model_fitted_transformed <- model_fitted*data_multip$trend*data_multip$seasonal
+#View(model_fitted_transformed)
+```
+
+
+
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+plot(random, xlab = "Year", ylab = "Random",main="Plot of Random", col="salmon1")
+points(model_fitted, type = "l", col = "yellow", lty = 3)
+
+plot(tsdata, xlab = "Year", ylab = "Mean Consumption",main="Plot of Daily Mean Consumption Time Series Data",col="salmon1")
+points(model_fitted_transformed, type = "l", col = "yellow", lty = 3)
+
+```
+
+
+```{r include=FALSE, warning=FALSE, message = FALSE}
+model_forecast <- predict(model, n.ahead = 14)$pred
+model_forecast=ts(model_forecast,frequency = 365,start=c(2021,9))
+
+last_trend_value <-tail(data_multip$trend[!is.na(data_multip$trend)],1)
+seasonality=data_multip$seasonal[9:22]
+#back to the original series
+model_forecast=model_forecast*last_trend_value*seasonality
+```
+
+After the model is set up, the values that have been forecasted are shown in the graph and given in the following lines. These are average values and the values are multiplied by 24 to show the total value and the total form is provided.
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+plot(tsdata, xlab = "Year", ylab = "Mean Consumption",main="Plot of Daily Mean Consumption Time Series Data",col="salmon1")
+points(model_fitted_transformed, type = "l", col = "yellow", lty = 3)
+points(model_forecast, type = "l", col = 3)
+model_forecast
+model_forecast*24
+```
+The required statistics are provided by calculating them through a function.
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+statistic<- function(actual, forecasted){
+  n=length(actual)
+  error = actual-forecasted
+  mean=mean(actual)
+  sd=sd(actual)
+  bias = sum(error)/sum(actual)
+  mape = sum(abs(error/actual))/n
+  mad = sum(abs(error))/n
+  wmape = mad/mean
+  l = data.frame(n,mean,sd,bias,mape,mad,wmape)
+  return(l)
+}
+
+actualdata <- read_excel("C:/Users/Safiye/Desktop/actualdata.xlsx")
+
+statistic (actualdata$consumption, model_forecast)
+
+```
+
+
+
