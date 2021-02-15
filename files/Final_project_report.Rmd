@@ -832,8 +832,15 @@ Lecture notes and presentations were the main source used in the modeling phase 
 
 * [DataCamp](https://www.datacamp.com/)
 
+* [ARIMAX Models](https://www.real-statistics.com/time-series-analysis/time-series-miscellaneous/arimax-model-and-forecast/)
+
 ## Code
 
+The R Markdown file of the report and the code used for submissions can be reached by clicking the following links:
+
+* [R Markdown File](https://github.com/BU-IE-360/fall20-safiyesahin/files/Final_project_report.Rmd)
+
+* [Code for Submissions](https://github.com/BU-IE-360/fall20-safiyesahin/files/submissionkodu.R)
 
 
 
