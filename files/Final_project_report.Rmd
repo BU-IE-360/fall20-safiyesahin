@@ -838,9 +838,9 @@ Lecture notes and presentations were the main source used in the modeling phase 
 
 The R Markdown file of the report and the code used for submissions can be reached by clicking the following links:
 
-* [R Markdown File](https://github.com/BU-IE-360/fall20-safiyesahin/files/Final_project_report.Rmd)
+* [R Markdown File](https://github.com/BU-IE-360/fall20-safiyesahin/blob/master/files/Final_project_report.Rmd)
 
-* [Code for Submissions](https://github.com/BU-IE-360/fall20-safiyesahin/files/submissionkodu.R)
+* [Code for Submissions](https://github.com/BU-IE-360/fall20-safiyesahin/blob/master/files/submissionkodu.R)
 
 
 
