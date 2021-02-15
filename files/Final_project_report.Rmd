@@ -1,0 +1,865 @@
+---
+title: "Forecasting the Hourly Electricity Consumption in Turkey"
+author: 
+- name: "Group 4 - IE360 - Fall 2020"
+- name: "Safiye Şahin - Fatma İlayda Tutal - Özgür Kaan Varlık"
+date: "15/02/2021"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(knitr)
+library(jsonlite)
+library(httr)
+library(data.table)
+library(readxl)
+library(fpp)
+library(forecast)
+library(readxl)
+library(lubridate)
+library(dplyr)
+library(scales)
+library(ggplot2)
+library(data.table)
+library(readxl)
+library(gridExtra)
+consumption=fread('C:/Users/Safiye/Desktop/bulk_consumption_with_temp.csv')
+head(consumption,10)
+setDT(consumption)
+consumption[,Date:=as.Date(Date)]
+
+```
+
+## Introduction
+
+There are several factors affecting the electricity consumption of a country. One aspect for sure to be considered is the industrial developments in that country. In an underdeveloped country, since a lot of people don't have the access to electricity, they won't be able to consume it. This is the case for many developing countries such as Nigeria, Bangladesh and Indonesia. On the other hand, in a developed country with great industrial advancements, a significant portion of the electricity consumption is dedicated to the industry and most of its citizens are connected to the electricity grid.  
+
+Another very important aspect is the overall climate in that country. When electricity consumption per capita is investigated, it can be seen that a country that is generally considered to have a colder climate and harsher weather conditions tends to have a higher consumption per capita. This is most probably due to the increasing utilization of heating sources in that country. That's one of the reasons why countries like Canada, Iceland, Norway and Sweden have the highest electricity consumption per person among other countries. However, one should also consider that air-conditioning requires a significant amount of electricity too. So it's not necessary for a country to be considered "cold" to consume a great deal of electricity, but this is mostly applicable to a more developed country.
+
+Population is also an important indicator of the level of electricity consumption. If there are more people living in a country, it is very much expected that it has a higher overall electricity consumption. Surely the effect of population can be seen in countries like China and India. However, it is worth mentioning that because some highly populated countries are still "developing", they have relatively lower electricity consumption levels. Therefore having a high population is not a guarantee of high electricity consumption as well.
+
+All in all, there are many aspects, some of which have not been discussed such as the level of insulation of houses in that country, that have an impact on the electricity consumption of a country. For the case of Turkey, it is for sure that the weather conditions will have a great influence, since Turkey is a country where all 4 seasons can be experienced. Furthermore, Turkey is a country that has 7 regions with very distinct climates, industrial developments and populations. So, it should be expected that different regions will have very different levels of consumption. 
+
+The aim of this study is to investigate the hourly electricity consumption in Turkey, decide on the possible factors that may affect the electricity consumption and build a forecasting model accordingly. The study will start with the visualization of the electricity consumption data, then move on with building a forecasting model. Afterwards, hourly consumption amounts will be predicted for 14 days using the model and the results will be interpreted, as well as several alternative improvements will be discussed. 
+
+## Visualization and Manipulation
+
+The set of data used for the assignment includes the date, the hour, the consumption amounts (for each hour of the day) and again hourly temperature values from 7 different locations in Turkey from January 2017 to February 2021. Below, the head of the data is shown.
+
+```{r, layout="l-body-outset"}
+library(rmarkdown)
+paged_table(head(consumption,10))
+```
+
+For the sake of the project, the consumption amounts will be subjected to an in-depth visual analysis in order to decide on the general outline of the approach that will be implemented to make forecasts. Firstly, it is very necessary to plot the hourly consumption amounts together before making any further comments.
+
+```{r fig.height=4, fig.width=11}
+library(ggplot2)
+ggplot() + 
+  geom_line(data = consumption[1:(.N-48),], aes(x = Date, y = Consumption, color=Consumption),size = 1) +
+  scale_colour_gradient2(low = "cyan", mid = "purple" , 
+                         high = "purple",midpoint=mean(consumption$Consumption)) + 
+  xlab('Time') +
+  ylab('Electricity Consumption') + 
+  labs(title="Hourly Electricity Consumption from January 2017 to January 2021") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8))
+
+```
+
+Although it is difficult to interpret the graph since the scale of the data to be manipulated is quite big, it can be observed that there is a significant degree of yearly seasonality, in that for each year, there seems to be a repeating pattern. 
+
+It should be stated that for the rest of the visual analysis and for the approach to be implemented, daily values will be utilized, since it is much easier to make observations with daily values. In order to obtain the new set of data, first, the mean consumption for each day was calculated and for the case of the temperatures, the maximum and the minimum for each hour among all locations were taken and two columns were created, where the the mean of maximum and the minimum temperatures for each day are stored. Below the newly created head of data can be seen.
+
+```{r}
+daily_consumption=consumption[,list(mean_consumption=mean(Consumption,na.rm=T), 
+                                    mean_maxt=mean(max(T_1), max(T_2), max(T_3), max(T_4), max(T_5), max(T_6), max(T_7)),
+                                    mean_mint=mean(min(T_1), min(T_2), min(T_3), min(T_4), min(T_5), min(T_6), min(T_7))),by=list(Date)]
+daily_consumption <- data.table(daily_consumption)
+daily_consumption1 <- daily_consumption[1:(.N-2),]
+daily_consumption_shown <- daily_consumption1
+colnames(daily_consumption_shown)[colnames(daily_consumption_shown) %in% c("mean_consumption","mean_maxt","mean_mint")] <- c("Mean Consumption","Mean Max Temperature","Mean Min Temperature")
+#head(daily_consumption_shown,10)
+```
+
+```{r, layout="l-body-outset"}
+library(rmarkdown)
+paged_table(head(daily_consumption_shown,10))
+```
+
+Now, it may be useful to plot the mean consumption amounts together and reanalyze the daily graph to make further inferences.
+
+```{r fig.height=4, fig.width=11}
+daily_consumption=consumption[,list(mean_consumption=mean(Consumption,na.rm=T), 
+                                    mean_maxt=mean(max(T_1), max(T_2), max(T_3), max(T_4), max(T_5), max(T_6), max(T_7)),
+                                    mean_mint=mean(min(T_1), min(T_2), min(T_3), min(T_4), min(T_5), min(T_6), min(T_7))),by=list(Date)]
+daily_consumption <- data.table(daily_consumption)
+daily_consumption1 <- daily_consumption[1:(.N-2),]
+
+ggplot() + 
+  geom_line(data = daily_consumption1, aes(x = Date, y = mean_consumption, color=mean_consumption),size = 1) +
+  scale_colour_gradient2(low = "orange", mid = "red" , 
+                         high = "red",midpoint=mean(daily_consumption1$mean_consumption)) + 
+  xlab('Time') +
+  ylab('Electricity Consumption') + 
+  labs(title="Daily Electricity Consumption from January 2017 to January 2021") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8))
+
+```
+
+At first glance, the yearly seasonality is again very visible and it should be accounted for when building a forecasting approach. Secondly, there seems to be some outliers where the mean consumption plummets. It may be a good idea to investigate those points where the sudden decreases occur, since if they are left unconsidered, they might affect the approach and result in poor forecasts. Plotting the mean consumption values in one year should be useful to make further comments.
+
+```{r fig.height=4, fig.width=11}
+ggplot() + 
+  geom_line(data = daily_consumption1[Date > as.Date("2018-12-31") & Date < as.Date("2019-12-31"),], aes(x = Date, y = mean_consumption, color=mean_consumption),size = 1) +
+  scale_colour_gradient2(low = "cyan2", mid = "cyan3" , 
+                         high = "darkcyan",midpoint=mean(daily_consumption1$mean_consumption)) + 
+  xlab('Time') +
+  ylab('Electricity Consumption') + 
+  labs(title="Daily Mean Electricity Consumption in 2019") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8))
+```
+
+When the outliers are investigated, it can be noticed that most of them coincide with religious holidays such as Eid al-Fitr or Eid al-Adha. The first day of the year is also and almost always can be considered as an outlier. The reason that the consumption decreases in those days specifically is probably that during those days, the workplaces are mostly closed or active with a limited capacity. Therefore, it should be wise to take into account the dates of religious holidays and the first day of the year when building the approach.
+
+```{r fig.height=4, fig.width=11}
+ggplot() + 
+  geom_line(data = daily_consumption1[9:43,], aes(x = Date, y = mean_consumption, color=mean_consumption),size = 1) +
+  scale_colour_gradient2(low = "seagreen2", mid = "seagreen3" , 
+                         high = "seagreen4",midpoint=mean(daily_consumption1$mean_consumption)) + 
+  xlab('Time') +
+  ylab('Electricity Consumption') + 
+  labs(title="Daily Electricity Consumption for 5 Weeks") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8))
+```
+
+Above, the plot of mean consumption amounts for 5 weeks can be seen. By looking at the graph, it is immediately observed that there is a significant degree of weekly seasonality that should be considered. Moreover, the consumption appears to be higher during the week and lower on weekends. This is most probably due to the fact that workplaces are usually closed on weekends.
+
+It may be helpful to plot the autocorrelation function and make further comments regarding the data.
+
+```{r fig.height=4, fig.width=11}
+ggAcf(daily_consumption1$mean_consumption, col = "blueviolet", lag.max = 70, size=1) +  
+  xlab('Lag') +
+  ylab('ACF') + 
+  labs(title="Mean Electricity Consumption ACF") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8))
+```
+The autocorrelation function seems to support to the argument that there is a degree of weekly seasonality, in that the ACF values appear to rise at every 7th lag. It should also be mentioned that the data shows a significant level of autocorrelation at lag 1.
+
+```{r fig.height=4, fig.width=11}
+ggplot() + 
+  geom_line(data = daily_consumption1[Date > as.Date("2019-8-31"),], aes(x = Date, y = mean_consumption, color=mean_consumption),size = 1) +
+  scale_colour_gradient2(low = "coral", mid = "darkorange" , 
+                         high = "orange",midpoint=mean(daily_consumption1$mean_consumption)) + 
+  xlab('Time') +
+  ylab('Electricity Consumption') + 
+  labs(title="Daily Electricity Consumption Starting From September 2019") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8))
+```
+
+Above, the data is shown starting from the beginning of September 2019. It should be noticed that starting with April 2020, there seems to be a significant decrease in consumption. This is presumably because of the fact that the Coronavirus entered and started to spread in Turkey first in March 2020 and soon after, the schools were temporarily closed and some businesses switched to working from home. So, the effects of the pandemic has to be considered and when building a forecasting model.
+
+Before moving forward, the temperature values should be considered.
+
+```{r fig.height=4, fig.width=11}
+color <- c("Mean Consumption"="slateblue3","Mean Max Temperature"="palevioletred1","Mean Min Temperature"="mediumvioletred")
+g<- ggplot() +
+  geom_line(data=daily_consumption_shown,aes(x= Date,y=`Mean Consumption`, color = "Mean Consumption")) +
+  geom_line(data=daily_consumption_shown,aes(x= Date,y=`Mean Max Temperature`*1000, color="Mean Max Temperature")) +
+  geom_line(data=daily_consumption_shown,aes(x= Date,y=`Mean Min Temperature`*1000, color="Mean Min Temperature"))+
+  scale_color_manual(values=color) + 
+  xlab("Date(2014 Jan- 2019 Dec)")+
+  scale_x_date(date_breaks = "1 year",
+               date_labels = "%Y %b") +
+ scale_y_continuous(
+    # Add a second axis and specify its features
+    sec.axis = sec_axis( trans=~./1000, name="Temperature")) +
+    xlab('Time') +
+  ylab('Electricity Consumption') + 
+  labs(title="Daily Electricity Consumption, Mean Maximum Temperature & Mean Minimum Temperature") +
+  theme_minimal() +
+  theme(plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8),legend.background = element_rect(fill="seashell", 
+                                  size=0.5, linetype="blank"),legend.title = element_text(colour="black", size=13, 
+                                      face="bold"))
+g
+
+```
+
+By comparison, it can easily be observed that both mean maximum temperature and mean minimum temperature have a degree of correlation with daily electricity consumption amounts, in that their overall patters seem to be quite similar with each of them increasing and decreasing in similar periods of the year. Therefore, it has to be a good idea to take at least one of them as a regressor when building a model.
+
+## Approach
+
+As it is discussed in the visualization part of the study, independent variables that were considered as possible regressors (i.e. Temperature, Day of the Week, Day of the Year, Holidays etc.) are added to the main daily data.
+
+The tail of the data with its new additions can be seen below. 
+
+```{r}
+daily_consumption1[,w_day:=weekdays(Date)]
+daily_consumption1[,y_day:=yday(Date)]
+daily_consumption1[,mon:=months(Date)]
+daily_consumption1[,time_index:=1:.N]
+daily_consumption1[,pandemic:=0]
+daily_consumption1[,lockdown:=0]
+daily_consumption1$pandemic[1171:(length(daily_consumption1$pandemic))] = 1
+daily_consumption1$lockdown[1420:(length(daily_consumption1$lockdown))] = 1
+
+
+daily_consumption1[,holiday:=0]
+
+daily_consumption1$holiday[c(177, 178, 244, 247, 366, 531, 598, 599, 600, 601, 731, 886, 887, 888, 
+                             954, 955, 956, 1096, 1241, 1242, 1308, 1311, 1462 )] = 1
+
+daily_consumption_shown2 <- daily_consumption1
+colnames(daily_consumption_shown2)[colnames(daily_consumption_shown2) %in% c("Date","mean_consumption", "mean_maxt", "mean_mint", "w_day", "y_day", "mon","time_index", "pandemic", "lockdown", "holiday")] <- c("Date","Mean Consumption", "Mean Max Temp", "Mean Min Temp", "Day of the Week", "Day of the Year","Month", "Time Index", "Pandemic", "Lockdown", "Holidays")
+#tail(daily_consumption_shown2, 10)
+
+```
+
+```{r, layout="l-body-outset"}
+library(rmarkdown)
+paged_table(tail(daily_consumption_shown2, 10))
+```
+
+To find the most suitable model, different combinations of the candidate regressors in the daily data set are fitted into separate regression models. According to the comparison of the results from these models, best one will chosen to make predictions.
+
+### Model 1
+
+As a base model, only  the *time index* and *temperature* variables are added to and a model is built to explore the relationship between the mean consumption, time and the given temperature information. Since the distribution of mean maximum and mean minimum temperature values appear to be extremely similar in comparison, using only one of them is reasonable. It should be mentioned that both of in a model together may result in overfitting, i.e. poor forecasts.
+
+```{r}
+fitlm_1=lm(mean_consumption~time_index+mean_maxt, daily_consumption1)
+summary(fitlm_1)
+```
+
+As it is expected, added variables have turned out to be significant to the model; however, the adjusted R-squared value is much lower than desired and the residual standard error is very high. To increase the adjusted R-squared value, other possible regressors will be considered.
+ 
+### Model 2
+
+Since weekly seasonality is very visible in the graphs shown while analyzing the daily consumption data, a variable that specifies *the day of the week* can be added to the model in order to somewhat account for the seasonality.
+
+```{r}
+fitlm_2=lm(mean_consumption~time_index+mean_maxt+w_day, daily_consumption1)
+summary(fitlm_2)
+
+```
+
+When the summary is  examined, it appears that although only some of the days are significant to the model, adjusted R-squared value has increased with a considerably lower residual standard error. 
+
+### Model 3
+
+Additionally, the yearly seasonality that was observed earlier may be explained by specifying *the day of the year* with a new variable. This variable can take values between 1 and 365 (or 366 if it's a leap year).
+
+```{r}
+fitlm_3=lm(mean_consumption~time_index+mean_maxt+w_day+y_day, daily_consumption1)
+summary(fitlm_3)
+
+```
+
+Unfortunately, the *day of the year* appears to be insignificant to the model with a p-value of 0.148 and very little change in the residual standard error. This may be due to some of the yearly seasonality being explained by the day of the week effect. However, before removing this variable immediately, one or two variables will be put into the model to see if the *day of the year* becomes significant or not. If not, it is safe to assume that removing the variable will not cause a notable loss to the accuracy of the model. The reason for this approach is that the effect of a variable can change depending on the addition or removal of other regressors from the model.
+
+### Model 4
+
+In this model, a variable to specify *the month* is added, which may be helpful to see if the month a day is in has a considerable influence on the electricity consumption on that day or not.
+
+```{r}
+fitlm_4=lm(mean_consumption~time_index+mean_maxt+w_day+y_day+mon, daily_consumption1)
+summary(fitlm_4)
+
+```
+
+Increased adjusted R-squared and decreased residual standard error indicate that the model has improved a lot and most of the months appear to be significant. On the other hand, day of the year is still seems irrelevant to the model; so, it is removed permanently.
+
+### Model 5
+
+As it was discussed in the previous part, with the onset of the pandemic, some visible changes were observed in the pattern of the data. To reflect these changes, a regressor to remark *the pandemic* can be added to the model. For this purpose, the period starting from the 11th of March 2020 is taken, which is the date where the Ministry of Health announced the first Covid-19 case in Turkey.
+
+```{r}
+fitlm_5=lm(mean_consumption~time_index+mean_maxt+w_day+mon+pandemic, daily_consumption1)
+summary(fitlm_5)
+```
+
+The regressor is found to be significant to the model. Moreover, adjusted-R squared has increased and residual standard error has decreased considerably.
+
+### Model 6
+
+In this further model, a variable that is named *holiday* is added in order to explain the effect of the religious holidays and the first day of the year since it appears that there is usually very low electricity consumption on these days. Among the mentioned dates, only weekdays (not weekends) are marked as 1 and the remaining ones as 0, since in a regular week, the consumption is notably lower on weekends, so including those days when creating this variable may mislead the model.
+
+```{r}
+fitlm_6=lm(mean_consumption~time_index+mean_maxt+w_day+mon+pandemic+holiday, daily_consumption1)
+summary(fitlm_6)
+```
+
+The low p-value of the holiday variable tells that it is a significant regressor and the changes in the mean consumption can be explained by it to some extent. Moreover, adjusted R-squared got higher again with a lower residual standard error.
+
+### Model 7
+
+In addition to the pandemic variable,it was decided that a *lockdown* variable which specifies dates starting from the very first day of the strict prohibitions related with the spread of the Coronavirus, can be added to model since it is also expected this period may cause a change in the electricity consumption.
+
+```{r}
+fitlm_7=lm(mean_consumption~time_index+mean_maxt+w_day+mon+pandemic+holiday+lockdown, daily_consumption1)
+summary(fitlm_7)
+```
+
+Although *lockdown* variable is not very effective in increasing the adjusted R-squared value or lowering the residual standard error, it has turned out to be significant to the model. Therefore, it will remain in the further steps of the analysis.
+
+After reaching a considerably good adjusted R-squared value with this latest model, it is argued that checking the residuals of the model could be useful in determining what to implement next.
+
+```{r warning=FALSE}
+layout(matrix(c(1,1,2,3), 2, 2, byrow = TRUE))
+plot(fitlm_7$residuals, main = "Residuals of the Fitted Model", xlab = "Time", ylab = "Values", col = "slategray", type = "l")
+Acf(fitlm_7$residuals, na.action = na.pass, main = "ACF", col = "red1")
+hist(fitlm_7$residuals, na.action = na.pass, main = "Histogram", xlab="Values", col = "palevioletred1", breaks=80)
+
+bgtest(fitlm_7, order = 30)
+```
+
+Looking at the plot of the residuals obtained, it can be seen that the residuals are distributed over a wide range of values due to a few outliers.It may be necessary to narrow this range by adding outlier variables which consider the values that are lower than 10% and higher than 95% of the residuals with the help of the quantile function.
+
+```{r}
+
+daily_consumption1[, residuals_offit:=fitlm_7$residuals]
+daily_consumption1[, q10:= quantile(residuals_offit,0.10)]
+daily_consumption1[, q95:= quantile(residuals_offit,0.95)]
+daily_consumption1[, small_outlier:= as.numeric(residuals_offit < q10) ]
+daily_consumption1[, large_outlier:= as.numeric(residuals_offit > q95) ]
+
+```
+
+Also based on the ACF plot and the result from Breusch-Godfrey test, autocorrelation at lag 1 seems to be problematic, can be handled with different approaches, at least to some extent. One of them is to shift the residuals by one and add them to the daily consumption data to build a new model with the newly obtained shifted residuals as a regressor.
+
+```{r}
+todays_index <- as.numeric(difftime((daily_consumption1$Date[1466]+1), daily_consumption$Date[1],units="days")) + 1
+#todays_index <- 1490
+
+#adding lag1 with shifting
+lag1 <-  residuals(fitlm_7)
+#length(residuals(fitlm_7))
+
+#adding lagged consumption values
+lagged_cons <- daily_consumption1$mean_consumption
+lagged_cons_manip <- lagged_cons[1:(todays_index - 2)]
+
+trydata <- daily_consumption1[-1,]
+
+#residuals_length <- length(fitlm_7$residuals)
+lag1_manip <- lag1[1:(todays_index - 2)]
+```
+
+### Model 8
+
+The new model is established by adding three new variables (*small outliers* ,*large outliers* and *lagged residuals*) that were found to be necessary for the accuracy of the predictions.
+
+```{r}
+trydata <- cbind(trydata, lag1_manip)
+trydata_for_lag <- cbind(trydata, lagged_cons_manip)
+##################### deneme
+trydata[,pandemic_new_trend:=0]
+trydata$pandemic_new_trend[1171:1465] = c(1:295)
+
+fittry_trend=lm(mean_consumption~time_index+mean_maxt+w_day+mon+holiday+lag1_manip+small_outlier+large_outlier+pandemic_new_trend+ lockdown, trydata)
+#summary(fittry_xx)
+
+fittry_lag=lm(mean_consumption~time_index+mean_maxt+w_day+mon+pandemic+holiday+lag1_manip+small_outlier+large_outlier+lockdown+lagged_cons_manip, trydata_for_lag)
+#summary(fittry_lag)
+
+fittry=lm(mean_consumption~time_index+mean_maxt+w_day+mon+pandemic+holiday+lag1_manip+small_outlier+large_outlier+lockdown, trydata)
+summary(fittry)
+
+```
+
+Lastly added variables are all found to be significant by the model and the adjusted R-squared value has dramatically increased. Moreover, the residual standard error is halved.
+
+```{r warning=FALSE}
+layout(matrix(c(1,1,2,3), 2, 2, byrow = TRUE))
+plot(fittry$residuals, main = "Residuals of the Fitted Model", xlab = "Time", ylab = "Values", col = "slategray", type = "l")
+Acf(fittry$residuals, na.action = na.pass, main = "ACF", col = "purple")
+hist(fittry$residuals, na.action = na.pass, main = "Histogram", xlab="Values", col = "orchid1", breaks=80)
+```
+
+It can be seen that the distribution of the residuals is quite similar to Normal as it's desired. Additionally, the mean is around zero with mostly constant variance still with some outliers that were not accounted for by the quantile function. Most of the lag values are within the desired interval shown with the blue dashed lines. However, there is still a significant  level of autocorrelation at lag 1. At this point, it may be reasonable to add the mean consumption itself as a new regressor; however, this approach can be challenging when making predictions since this study aims to make predictions for 2 days and one of the lagged values will solely be based on the prediction of the previous day.
+
+To compare the last two models, residuals are plotted together:
+
+```{r fig.height=5, fig.width=7}
+
+residuals <- fittry$residuals
+fittry_in_datatable<-data.table(residuals)
+fittry_in_datatable[, index:=(1:.N)]
+reslm7_in_datatable<- data.table(residuals=residuals(fitlm_7))
+reslm7_in_datatable[,index:= (1:.N)]
+library(gridExtra)
+plot1 <- ggplot() + 
+  geom_point(data = reslm7_in_datatable, aes( x=index,y= residuals, color=residuals),size = 1.8) +
+  scale_colour_gradient2(low = "red3", mid = "coral" , 
+                         high = "red3",midpoint=0 ) + 
+  xlab('Index') +
+  ylab('Residuals') + 
+  labs(title="Residuals of the Model Before Adding Residual Lag and Quantile Outliers") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5, size = 12), 
+        axis.line = element_line(colour="gray", size=0.8))
+
+plot2 <- ggplot() + 
+  geom_point(data =fittry_in_datatable, aes( x=index,y= residuals, color=residuals),size = 1.8) +
+  scale_colour_gradient2(low = "blue", mid = "slateblue3" , 
+                         high = "blue",midpoint=0 ) + 
+  xlab('Index') +
+  ylab('Residuals') + 
+  labs(title="Residuals of the Model After Adding Residual Lag and Quantile Outliers") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5, size=12), 
+        axis.line = element_line(colour="gray", size=0.8))
+grid.arrange(plot1, plot2, nrow=2)
+
+```
+
+When the plot of the residuals are compared, it can be seen that the last model's residuals lie between a narrower range thanks to the added variables to Model 8. Based on the adjusted R-squared value, residual standard error, plot of residuals and ACF plot, it is decided that the Model 8 will be used to make predictions.
+
+### Forecasting
+
+In this part, two new rows are added to the data set. These rows represent the day that the submission is made and the day after (actual day to be forecasted); so, they take *Sys.Date()* and *Sys.Date() + 1* for their Date columns respectively. The other variables that are used in the model are filled as well, since their values are already known.
+
+```{r}
+
+#get forecasts for next day 
+trydata[,fitted:=fitted(fittry)]
+trydata[,residual:=residuals(fittry)]
+
+#added a new row for the prediction
+trydata=rbind(trydata,data.table(Date=as.Date("2021-01-06") ),fill=T)
+#tail(trydata)
+
+trydata[is.na(lag1_manip)==T,lag1_manip:= lag1[length(lag1)] ]
+trydata[is.na(time_index)==T,time_index:= todays_index]
+trydata[is.na(mean_maxt)==T,mean_maxt:= daily_consumption$mean_maxt[todays_index] ]
+trydata[is.na(mean_mint)==T,mean_mint:= daily_consumption$mean_mint[todays_index] ]
+trydata[is.na(pandemic)==T,pandemic:= 1 ]
+trydata[is.na(mon)==T,mon:= months(as.Date("2021-01-06")) ]
+trydata[is.na(holiday)==T,holiday:= 0 ]
+trydata[is.na(w_day)==T,w_day:= weekdays(as.Date(daily_consumption$Date[todays_index])) ]
+trydata[is.na(small_outlier)==T,small_outlier:= 0 ]
+trydata[is.na(large_outlier)==T,large_outlier:= 0 ]
+trydata[is.na(lockdown)==T,lockdown:= 1 ]
+
+
+
+#tail(trydata)
+
+prediction <- predict(fittry, trydata[is.na(fitted)==T])
+trydata[is.na(fitted)==T,fitted:=prediction]
+#tail(trydata)
+
+trydata[is.na(mean_consumption)==T,mean_consumption:= prediction ]
+
+
+fitlm_7=lm(mean_consumption~time_index+mean_maxt+w_day+mon+pandemic+holiday+lockdown, trydata)
+
+
+##############################
+#prediction of the next 2 days
+lag2 <-  residuals(fitlm_7)
+trydata2 <- trydata[-1,]
+#length(residuals(fitlm_7))
+#head(residuals(fitlm_7))
+
+#residuals_length <- length(fittry$residuals)
+lag2_manip <- lag2[1:(todays_index -2 )]
+#############################################3##30 ocak iÃ§in 1489
+#
+
+trydata2 <- cbind(trydata2, lag2_manip)
+fittry2=lm(mean_consumption~time_index+mean_maxt+w_day+mon+pandemic+holiday+lag2_manip+small_outlier+large_outlier+lockdown, trydata2)
+#summary(fittry2)
+#checkresiduals(fittry2)
+
+#get forecast of forecast 
+#trydata2 <- trydata2[, c(1:11)]
+trydata2[,fitted_2:=fitted(fittry2)]
+trydata2[,residual_2:=residuals(fittry2)]
+
+#added a new row for the prediction
+trydata2=rbind(trydata2,data.table(Date=as.Date("2021-01-07")),fill=T)
+#tail(trydata2)
+
+trydata2[is.na(lag2_manip)==T,lag2_manip:= lag2[length(lag2)] ]
+trydata2[is.na(time_index)==T,time_index:= (todays_index+1)]
+trydata2[is.na(mean_maxt)==T,mean_maxt:= daily_consumption$mean_maxt[(todays_index+1)] ]
+trydata2[is.na(mean_mint)==T,mean_mint:= daily_consumption$mean_mint[(todays_index+1)] ]
+trydata2[is.na(pandemic)==T,pandemic:= 1 ]
+trydata2[is.na(mon)==T,mon:= months(as.Date("2021-01-06")+1) ]
+trydata2[is.na(holiday)==T,holiday:= 0 ]
+trydata2[is.na(w_day)==T,w_day:= weekdays(as.Date(daily_consumption$Date[(todays_index+1)])) ]
+trydata2[is.na(small_outlier)==T,small_outlier:= 0 ]
+trydata2[is.na(large_outlier)==T,large_outlier:= 0 ]
+trydata2[is.na(lockdown)==T,lockdown:= 1 ]
+
+prediction2 <- predict(fittry2, trydata2[is.na(fitted_2)==T])
+trydata2[is.na(fitted_2)==T,fitted_2:=prediction2]
+
+
+trydata3 <- trydata2
+trydata3 <- trydata3[,-c(4,6,12,13,14,17,18,19,20)]
+
+colnames(trydata3)[colnames(trydata3) %in% c("Date","mean_consumption", "mean_maxt", "w_day", "mon","time_index", "pandemic", "lockdown", "holiday", "small_outlier", "large_outlier", "lag2_manip", "fitted_2", "residual_2")] <- c("Date","Consumption", "Max Temp", "Day of the Week","Month", "Time Index", "Pandemic", "Lockdown", "Holidays", "Small Outlier", "Large Outlier", "Residual Lag", "Fitted", "Residuals")
+
+#tail(trydata3,5)
+
+trydata2[is.na(mean_consumption)==T,mean_consumption:= prediction2 ]
+
+```
+
+```{r, layout="l-body-outset"}
+library(rmarkdown)
+paged_table(tail(trydata3))
+```
+
+After filling the empty slots for the day of the submission, a prediction was made. With the help of the newly forecasted value, the model was utilized again, since the lagged residuals had to be filled using the prediction from the previous day.
+
+### Transition from Daily to Hourly Data
+
+In this step, forecasted daily mean consumption amounts are divided into hourly values since the aim of this study is to predict the electricity consumption for each hour. This transformation was done by utilizing the distributions from the same day of the last 4 weeks. A percentage distribution for an hour was obtained by dividing each hour's value to the daily total consumption for each day to be used. So, with the acquired percentage vector, daily predictions were distributed to 24 hours. 
+
+Below is an exemplary plot of the hourly distribution for the 7th of January 2021.
+
+```{r}
+
+#transforming to the hourly
+#hourly <- consumption[c(35377:35712),]       2 haftalÄ±k periyot
+#hourly <- consumption[c(35041:35712),]       4 haftalÄ±k periyot
+
+hour_index<-todays_index*24
+#hourly <- consumption[ c((hour_index-(168*4)+1):(hour_index-(168*4)+24),
+#                         (hour_index-(168*3)+1):(hour_index-(168*3)+24) ,(hour_index-(168*2)+1):(hour_index-(168*2)+24),
+#                         (hour_index-168+1):(hour_index-168+24))]
+
+hourly <- consumption[ c((hour_index-(168*4)+1):(hour_index-(168*4)+24),
+                         (hour_index-(168*3)+1):(hour_index-(168*3)+24) ,(hour_index-(168*2)+1):(hour_index-(168*2)+24),
+                         (hour_index-(168*5)+1):(hour_index-(168*5)+24))]
+
+
+
+hourly_ordered <- hourly[order(hourly$Hour)]
+#str(hourly_ordered)
+
+j=1
+hourly_mean <- c()
+#for(i in 1:24){
+#  hourly_mean[i] <- mean(hourly_ordered$Consumption[j:(j+13)])
+#  j <- j+14}
+
+for(i in 1:24){
+  hourly_mean[i] <- mean(hourly_ordered$Consumption[j:(j+3)])
+  j <- j+4}
+
+
+
+percentage_hours <- hourly_mean / sum(hourly_mean)
+
+final_prediciton <- prediction2 * percentage_hours *24
+#plot(final_prediciton)
+
+final_prediction_dt <- data.table(final_prediction = final_prediciton, index=1:24)
+
+library(ggplot2)
+ggplot() + 
+  geom_line(data = final_prediction_dt, aes(x = index, y = final_prediction, color=final_prediction),size = 1) +
+  scale_colour_gradient2(low = "seagreen2", mid = "seagreen3" , 
+                         high = "seagreen4",midpoint=mean(daily_consumption1$mean_consumption)) + 
+  xlab('Hour') +
+  ylab('Electricity Consumption') + 
+  labs(title="Electricity Consumption of The Predicted Day") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8))
+
+
+
+#plot(daily_consumption$mean_consumption[1:28],type='l')
+#points(fittry$fitted[1:28],type='p',col=2)
+
+
+```
+
+## Results
+
+For this next part of the study, the obtained results are summarized and the model is evaluated by comparing the actual and predicted values of the estimated days.
+
+When the established models are examined from the beginning, it can be seen that the adjusted R-squared values of the models were constantly increasing with the last model's value being 0.9463. Similarly, the residual standard error was decreasing and the lowest value was obtained with the latest model. After obtaning the hourly values by distribution, the forecasts shoul be compared with the actual values.
+
+```{r fig.height=4, fig.width=11}
+
+report_predictions<-c(32147.9148, 30403.212, 29157.1152, 28380.4786, 28111.8146, 28253.3444, 28832.7994, 30273.6707, 33746.5161, 37069.1613, 39009.986, 40194.7046, 39600.8526, 39834.6757, 40001.4422, 39377.6485, 39015.7467, 38853.8773, 38937.6408, 37990.9604, 36738.6712, 35926.9239, 35261.9248, 34086.0079,
+                      29105.6777, 27526.1433, 26398.006, 25694.8954, 25451.6691, 25579.8035, 26104.4024, 27408.8679, 30553.1065, 33561.1927, 35318.2806, 36391.2381, 35853.4573, 36064.8344, 36215.8498, 35651.08, 35323.4316, 35177.0256, 35252.8411, 34395.7821, 33262.1884, 32527.0523, 31924.8956, 30860.2998,
+                      31153.8204, 29463.1049, 28255.5901, 27503.008, 27242.668, 27379.818, 27941.3276, 29337.5507, 32702.9705, 35922.7164, 37803.427, 38951.871, 38376.258, 38602.5046, 38764.1487, 38159.634, 37808.9223, 37652.2098, 37733.3487, 36815.9395, 35602.6304, 34815.794, 34171.2715, 33031.7515,
+                      34257.3761, 32471.2615, 31147.5552, 30292.927, 29989.3281, 30153.0697, 30739.3783, 32225.1614, 35669.0926, 38866.5668, 40610.0703, 41700.7027, 40961.5848, 41292.3255, 41578.2221, 40983.9951, 40798.5572, 41045.6422, 41370.4089, 40356.2395, 39037.8564, 38178.3622, 37480.3458, 36225.4326,
+                      33585.4627, 31824.692, 30606.6731, 29855.0171, 29626.3656, 29840.2274, 30501.8093, 32446.4154, 36793.3264, 40570.8799, 42383.0954, 43344.4986, 42388.566, 42784.9683, 43031.4758, 42310.2517, 41928.9102, 41785.0871, 41563.431, 40377.9625, 38815.0301, 38002.1827, 37267.1927, 35942.9735,
+                      33475.4472, 31679.5939, 30487.1115, 29675.6323, 29543.0509, 29707.9831, 30477.2724, 32368.4296, 36832.0991, 40583.1623, 42365.0263, 43204.0235, 42175.4121, 42496.8288, 42771.546, 42062.7356, 41694.9114, 41520.3693, 41212.2715, 40242.8827, 38701.4849, 37766.974, 37072.5653, 35786.2259,
+                      33707.0762, 31861.0454, 30588.5125, 29815.3859, 29576.7895, 29877.5105, 30655.6796, 32464.3793, 36842.2523, 40484.9147, 42261.0514, 43052.7954, 41679.3483, 40807.2377, 41633.2079, 41042.1203, 40650.5699, 40527.1197, 40314.0461, 39257.6051, 37943.8324, 37143.3152, 36461.1623, 35379.5764,
+                      34225.8369, 32383.9607, 31108.2125, 30167.2126, 29698.6067, 29698.5404, 29979.2442, 30601.9683, 32454.7132, 34804.6247, 36547.7177, 38095.8697, 37988.9902, 38611.307, 38633.8125, 37993.8554, 37629.2119, 37598.5119, 38405.0801, 37832.7425, 36817.1774, 36018.3841, 35364.2191, 34166.7481,
+                      31690.4396, 29974.1265, 28576.8921, 27705.4069, 27264.361, 27119.3248, 27103.0418, 26994.354, 26836.6064, 28592.3361, 30468.4821, 32021.314, 32578.3036, 33114.6261, 33109.7746, 32691.0616, 32771.7068, 33314.3814, 34770.1437, 34688.8945, 34033.9173, 33289.5004, 32826.0854, 31893.8,
+                      30444.4939, 28896.6536, 27712.8084, 26978.2589, 26832.4278, 27084.3621, 27954.7381, 30251.2129, 35477.895, 39456.4519, 41325.45, 42504.0496, 41518.381, 41883.8888, 41946.0567, 41169.461, 40726.0605, 40413.7158, 40115.1155, 38997.799, 37588.2618, 36771.7489, 36082.0385, 34881.8788,
+                      33234.6111, 31589.7685, 30255.4816, 29440.1326, 29200.9501, 29356.5747, 30197.6223, 31878.9054, 36218.018, 39863.5201, 41551.1638, 42449.365, 41408.4973, 41734.8505, 41894.9556, 41161.584, 40653.7167, 40428.7295, 40309.3087, 39236.9835, 37897.1745, 37095.3588, 36386.2213, 35127.3409,
+                      33368.6809, 31565.2847, 30333.7868, 29550.0856, 29280.768, 29480.1438, 30194.5035, 32090.8174, 36305.509, 39984.1482, 41708.0343, 42537.4427, 41571.7743, 41975.9019, 42271.7559, 41552.2647, 41171.6285, 40947.0475, 40791.2392, 39798.8891, 38302.2393, 37462.1418, 36743.7978, 35439.9932,
+                      33193.7772, 31413.0346, 30230.5861, 29425.9349, 29294.4691, 29458.0134, 30220.8298, 32096.0743, 36522.1855, 40241.6865, 42008.5575, 42840.4951, 41820.5387, 42139.2509, 42411.6566, 41708.8103, 41344.081, 41171.0075, 40865.5022, 39904.27, 38375.8419, 37449.1942, 36760.6284, 35485.1126,
+                      33445.9365, 31614.2075, 30351.5334, 29584.3964, 29347.6484, 29646.0397, 30418.1801, 32212.8672, 36556.8234, 40171.2648, 41933.6412, 42719.2514, 41356.4448, 40491.0907, 41310.6619, 40724.1536, 40335.6366, 40213.1429, 40001.72, 38953.4637, 37649.8691, 36855.5538, 36178.6858, 35105.4793,
+                      34087.1893, 32252.7745, 30982.1943, 30045.0063, 29578.2987, 29578.2327, 29857.7994, 30478.0008, 32323.2404, 34663.6324, 36399.6643, 37941.5448, 37835.0982, 38454.894, 38477.3083, 37839.9437, 37476.7773, 37446.2017, 38249.5025, 37679.4834, 36668.0323, 35872.475, 35220.96, 34028.3399 )
+
+
+
+report_actual <- c(35410.65, 33553.07, 32025.96, 30952.48, 30443.75, 30383.67, 30778.37, 31293.2, 33407.02, 36186.05, 37909.82, 39820.48, 39777.19, 40656.67, 40581.99, 39742.94, 39113.32, 38427.59, 38903.61, 38747.55, 37477.52, 36559.67, 36047.63, 34822.85,
+            33189.76, 31369.65, 29879.85, 28965.02, 28321.9, 28193.87, 28164.34, 28082.1, 28007.06, 29944.11, 31899.26, 33391.9, 33942.62, 34406.13, 34378.99, 33720.75, 33582.1, 33958.12, 35538.42, 36022.4, 35507.48, 34638.53, 34171.99, 33075.12,
+            31762.18, 30050.36, 28844.71, 28039.18, 27947.13, 27977.21, 28776.63, 31199.66, 36702.27, 40591.03, 42316.05, 43567.32, 42321.45, 42397.04, 42174.52, 41287.95, 40709.89, 40462.14, 40384.6, 39490.43, 38193.69, 37350.35, 36771.04, 35385.05,
+            33804.85, 32117.47, 30618.36, 29909.15, 29688.32, 29807.11, 30697.62, 32325.29, 36649.59, 40012.54, 41650.29, 42323.58, 40794.7, 40979.89, 41197.76, 40382.4, 40136.59, 39865.22, 39881.57, 39291.45, 38001.63, 37219.97, 36616.83, 35279.32,
+            33926.39, 31974.08, 30808.45, 29897.45, 29541.58, 29832.71, 30757.81, 32420.07, 36537.17, 39871.15, 41016.26, 41124.76, 39525.17, 39817.45, 40094.21, 39329.58, 39144.31, 39095.59, 39534.36, 39282.19, 38035.55, 37277.42, 36567.23, 34890.69,
+            33584.56, 31781.21, 30608.42, 29904.11, 29518.35, 29806.86, 30657.68, 32236.19, 36636.22, 39514.73, 40670.59, 41193.81, 39493.46, 38883.34, 39794.35, 39061.67, 38733.69, 38581.18, 38713.47, 37681.69, 38094.31, 37259.39, 36680.40, 35565.33,
+            33324.53, 31728.96, 30568.79, 29818.55, 29523.82, 29773.07, 30481.89, 32008.95, 36246.33, 39257.28, 40501.67, 40879.15, 37383.37, 38551.03, 39210.39, 38429.28, 37966.95, 38073.19, 38439.21, 38543.52, 37441.72, 36761.35, 36211.15, 35273.58,
+            33233.38, 31716.19, 30411.28, 29634.5, 29369.81, 29323.63, 29806.19, 30187.3, 31967.38, 33505.04, 34689.56, 35607.61, 34738.9, 35463.23, 35197.04, 34401.55, 33849.35, 34556.67, 36302.6, 36641.88, 35748.46, 35002.9, 34357.28, 33267.81,
+            31535.18, 29997.37, 28638.86, 27861.82, 27612.42, 27320.96, 27448.67, 27164.02, 26996.77, 28156.81, 29608.52, 30681.54, 31079.0, 31564.74, 31586.14, 31017.42, 31139.72, 31905.75, 33618.65, 34564.43, 33919.5, 32956.3, 32567.19, 31512.06,
+            30392.07, 28927.23, 27695.71, 27049.43, 26918.04, 27194.79, 28185.91, 30281.28, 35141.1, 38422.57, 40093.92, 41023.79, 39928.94, 40082.71, 40123.83, 39463.34, 38981.56, 38772.29, 38727.37, 38446.51, 37079.17, 36271.8, 35564.18, 34393.37,
+            32752.14, 31133.18, 29865.14, 29244.25, 29030.51, 29199.59, 30023.38, 31425.79, 35759.53, 38504.33, 39703.07, 40503.77, 39088.66, 39113.18, 39415.03, 38580.17, 38243.16, 38293.06, 38371.43, 38506.14, 37192.88, 36499.92, 35765.08, 34450.29,
+            32927.3, 31297.13, 30070.8, 29253.87, 29138.0, 29416.7, 30168.39, 31617.14, 35900.72, 38738.82, 39717.8, 40602.15, 39328.94, 39386.55, 39438.29, 38657.02, 38299.2, 37984.06, 38167.01, 38345.19, 37369.36, 36528.19, 36004.3, 34888.99,
+            33223.25, 31682.69, 30410.7, 29532.49, 29392.57, 29536.26, 30327.83, 31903.54, 36257.02, 38603.51, 39727.39, 40188.57, 38984.89, 39140.84, 39368.98, 38508.45, 38093.3, 38135.81, 38611.21, 38799.07, 37660.52, 36758.1, 36086.67, 34877.53,
+            33157.27, 31606.51, 30232.5, 29610.39, 29175.61, 29456.68, 30313.05, 31927.51, 36273.3, 39309.75, 40821.7, 41903.34, 40717.95, 39653.15, 40738.96, 40299.1, 39797.78, 39689.56, 39374.05, 39339.33, 38124.48, 37059.87, 36439.78, 35360.45,
+            33583.06, 32142.05, 30991.38, 29987.08, 29640.56, 29760.45, 30108.52, 30151.69, 32363.7, 34232.4, 35854.97, 37023.58, 36878.53, 37183.9, 37016.7, 35994.56, 35843.95, 36298.1, 37237.69, 37750.1, 36825.39, 35782.79, 35047.11, 33720.32)
+index_final<-c(1:360)
+predicted_dates <- seq(as.Date("2021-01-30"), as.Date("2021-02-13"), by="days")
+predicted_dates <- rep(predicted_dates, each=24)
+comparison_of_data<-data.table(report_predictions,report_actual,predicted_dates,index_final)
+
+
+color <- c("Predictions"="orangered2","Actual Values"="aquamarine2")
+g<- ggplot() +
+  geom_line(data=comparison_of_data,aes(x= index_final,y=report_predictions, color = "Predictions"), size=1) +
+  geom_line(data=comparison_of_data,aes(x= index_final,y=report_actual, color="Actual Values"), size=1) +
+  scale_color_manual(values=color) + 
+    xlab('Time') +
+  ylab('Electricity Consumption') + 
+  labs(title="Comparison of Hourly Electricity Consumption for Forecasted Period") +
+  theme_minimal() +
+  theme(plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8) ,legend.background = element_rect(fill="seashell", 
+                                  size=0.5, linetype="blank"),legend.title = element_text(colour="black", size=13, 
+                                      face="bold"))
+g
+```
+
+According to the graph of the predictions that were made for 14 days and their actual values, some days appear to be overpredicted with some of them being underpredicted. The distribution of the same day of one week is quite similar to the other due to the fact that the total consumption on each day was distributed to 24 hours based on the same day of the week for the last 4 weeks. Another point to notice is that early hours of the day are predicted pretty close to the actual values.
+
+In addition to the visual interpretation, some statistics like bias, WMAPE and so forth are obtained by placing forecasted and actual values in a function in order to be able to evaluate the estimates according to a certain criteria.
+
+* **Statistics for the First Day**
+
+```{r}
+statistic<- function(actual, forecasted){
+  n=length(actual)
+  error = actual-forecasted
+  mean=mean(actual)
+  sd=sd(actual)
+  bias = sum(error)/sum(actual)
+  mape = sum(abs(error/actual))/n
+  mad = sum(abs(error))/n
+  wmape = mad/mean
+  l = data.frame(n,mean,sd,bias,mape,mad,wmape)
+  return(l)
+}
+
+
+statistic(report_actual[1:24],report_predictions[1:24])
+
+
+```
+
+When the function is run and statistics are taken for the first day of the forecast, it can be observed that the model shows relatively promising results. Also, when the plot is examined, it shoul be noticed that the predicted values are overlapping with actual ones especially for later hours the day.
+
+* **Statistics for the Third Day**
+
+```{r}
+statistic(report_actual[49:72],report_predictions[49:72])
+```
+
+When the statistics for the third day are examined, it is observed that the WMAPE value is almost twice the value of the first day. The result was not found good enough; therefore, it was necessary to return to the model and make some improvements. The small and large outlier variables mentioned above in the Approach part were among the improvement steps added to the model at this stage in order to make the residuals of the model more stationary and obtain better predictions. Furthermore, although the actual mean consumption value of the day in question and the forecasted mean value are not very different from each other, it was concluded that the model was not successful enough while distributing the obtained forecasts on an hourly level.
+
+**The methods tried to perform this transformation can be listed as follows:**
+
+* Obtaining a percentage coefficients vector by taking the mean of the last two weeks' hourly consumption values for each hour and dividing them to the total sum
+
+* Obtaining a percentage coefficients vector by taking the mean of the last four weeks' hourly consumption values for each hour and dividing them to the total sum based on the idea that a long period of time would result in a more reliable and better distribution
+
+* Obtaining a percentage coefficients vector by taking the mean of the same day of the week for the last 4 weeks for each hour and dividing them to the sum of them, since the distribution of the consumption to each hour is quite similar for the same days days of a week
+
+Since the last one of the possible transformations gave the best results, this method was chosen for the rest of the forecasting period.
+
+* **Statistics for the Fifth Day**
+
+```{r}
+statistic(report_actual[97:120],report_predictions[97:120])
+```
+
+The effect of the improvements were visible on the fifth day, and the statistics started to give better results consistently. After this stage, no new arrangement was made on the model. The results of the next few days are shown below as an example.
+
+* **Statistics for the Tenth & Fourteenth Day**
+
+```{r}
+statistic(report_actual[217:240],report_predictions[217:240])
+statistic(report_actual[313:336],report_predictions[313:336])
+```
+
+* **Entire Period**
+
+When the entire estimated period is evaluated , average results have turned out to be as follows:
+
+```{r}
+
+statistic<- function(actual, forecasted){
+  n=length(actual)
+  error = actual-forecasted
+  mean=mean(actual)
+  sd=sd(actual)
+  bias = sum(error)/sum(actual)
+  mape = sum(abs(error/actual))/n
+  mad = sum(abs(error))/n
+  wmape = mad/mean
+  l = data.frame(n,mean,sd,bias,mape,mad,wmape)
+  return(l)
+}
+  statistic(report_actual,report_predictions)
+  
+  
+  
+```
+
+It can be seen that although significantly better results were obtained after the first couple of days, the overall WMAPE and MAPE still show the effects mistakes that were made in earlier predictions, however it is worth mentioning that especially in the last week the WMAPE results were between 0.01149 and 0.03775 with most of them being below 0.03457093.
+
+## Conclusions and Future Work
+
+### Summary and Comments
+
+To conclude, it sis important to go over what has been done in the study so far. The aim of the study was to predict the next day's hourly electricity consumption with the help of a model which could make use of the exact values up to the day before the actual day of the prediction. Since handling an hourly data can cause problems and requires the use of the predictions, daily data was preferred to make forecasts. Everyday, actual values are taken from the [EPIAS](https://seffaflik.epias.com.tr/transparency/tuketim/gerceklesen-tuketim/gercek-zamanli-tuketim.xhtml) website and transformed into mean daily consumption amounts by summing up the values for each hour and dividing the acquired sum by 24. 
+
+There are several methods to build an approach for making predictions such as decomposing the time series and using an ARIMA model which requires to work with a stationary data, using an ARIMAX model and using a linear regression model which was preferred in this project. Besides given temperature values of seven different locations around Turkey, some other candidate regressors were added to a data table and used in alternative models with different combinations. It's worth mentioning that there might have been better options for the independent variables such as *humidity* values which is very effective on the felt temperature, a variable for *national holidays* or a *curfew* variable that specifies the prohibitions for weekends as well. Hence, the model could be improved by adding more different and effective variables. This can be considered one of the aspects that might increase the margin of error of this study. 
+
+Furthermore, the best model, which had the highest adjusted R-squared value and the lowest residual standard error value, was chosen to make predictions. Since the predictions were made for the total consumption for a day, thwy required to be transformed into hourly values. After observing rather high WMAPE values in the first couple days, *outliers* were handled, the *lockdown* variable was added and also a different approach is followed while distributing daily predictions to each hour which provided better WMAPE values in the following days. In addition, in the first days of the submission period, transition to hourly values was made based on the last two weeks; however, since everyday differs from one another, the code was manipulated to consider the day of the week while distributing to 24 hours. As a result, the model was improved based on each day's WMAPE results by adding new variables.
+
+### Possible Extentions
+
+Although a model is already built and used for predictions, there is always room for improvement. Here are several possible suggestions that could result in a better model, hence a better forecast.
+
+**Adding Lagged Values as a Regressor**
+
+As it has been discussed before, there is a degree of autocorrelation, specifically at lag 1 among the daily consumption values. In the model, this was not accounted for, moreover, although Model 8 was accepted and used for predictions, the autocorrelation function of the residuals still showed significant autocorrelation at lag 1. Therefore, adding lagged electricity consumption values as a regressor may in fact be a good idea.
+
+```{r}
+summary(fittry_lag)
+```
+
+By looking at the summary of the model, it appears that the adjusted R-squared value has increased and residual standard error has decreased significantly. Furthermore, all of the variables can be considered as significant to the model, with only one of them having a p-value between 0.1 and 0.05. It may be useful to look at the autocorrelation function of the residuals and compare with the actual model.
+
+```{r fig.height=3, fig.width=11}
+plot3<-ggAcf(fittry$residuals, col = "orangered", lag.max = 70, size=1) +  
+  xlab('Lag') +
+  ylab('ACF') + 
+  labs(title="ACF of the Residuals (Actual Model)") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8))
+
+plot4<-ggAcf(fittry_lag$residuals, col = "slateblue2", lag.max = 70, size=1) +  
+  xlab('Lag') +
+  ylab('ACF') + 
+  labs(title="ACF of the Residuals (Alternative Model)") +
+  theme_minimal() +
+  theme(legend.position="none",plot.title=element_text(hjust=0.5), 
+        axis.line = element_line(colour="gray", size=0.8))
+
+grid.arrange(plot3, plot4, ncol=2)
+```
+
+It should be noticed that the overall autocorrelation seems to have decreased in the alternative model, however the autocorrelation at lag 1 is still significant for the residuals.
+
+**Adding Trend for the Pandemic as a Regressor**
+
+When daily electricity consumption values are plotted together, it can be seen that after plummeting in the beginning of the pandemic, the consumption has risen almost in a linear fashion. So instead of specifying the period of the pandemic with 1's, adding a trend component for that period only may lead to better predictions.
+
+```{r}
+summary(fittry_trend)
+```
+
+After investigating the summary of the alternative model, it should be noticed that although the trend component is considered as significant to the model, the R-squared value has decreased and the residual standard error has increased. Consequently, it shouldn't be expected for the alternative model to give better results that the model at hand, however, it may make more sense to introduce a trend element for a shorter period.
+
+**Using Hourly Values for Regression**
+
+Using hourly values to build a regression model is a possibility and may lead to better results, since the model at hand does not really consider if there is any degree of autocorrelation among the consecutive hours of a day. However, for reasons related to the convenience of application and the ease of interpretation, it was decided that hourly values were to be distributed after the prediction of total value for that day.
+
+**Time Series Analysis for Predictions**
+
+By treating the given consumption data as a time series, one can decompose it from trend and seasonality and then fit an ARIMA model. This approach would lead to different predictions, however in this case, because an external variable was given (i.e. Temperature), time series analysis was not preferred. It's also worth mentioning that there might be difficulties in dealing with the data as a time series since multiple seasonalities are present.
+
+**Using an ARIMAX Model** 
+
+An ARIMAX is different than an ARIMA model, in that the X added to the end of the word stands for "exogenous". In other words, it suggests adding a separate external variable to help fit the variable at hand to a model. For the case of this study, it makes more sense to use an ARIMAX model, since there are known outside factors affecting the electricity consumption such as the weather.
+
+**Using a Different Distribution Technique**
+
+For the distribution of the total consumption to each hour of the day, the last four weeks were utilized, however a different possible application would be to extend the period or distribute the weight unequally, i.e. giving more weight to closer dates.
+
+## Related Literature
+
+Lecture notes and presentations were the main source used in the modeling phase of the study. In addition to these, some  internet research was conducted to get an idea for the independent variables that can be added to the model. The most important sources can be listed as follows:
+
+* [Avekon](http://avekon.org/papers/917.pdf)
+
+* [ResearchGate](https://www.researchgate.net/publication/329967964_Hanehalki_Elektrik_Talebini_Etkileyen_Faktorler_Turkiye_Uzerine_Bir_Uygulama)
+
+* [EPIAS](https://seffaflik.epias.com.tr/transparency/tuketim/gerceklesen-tuketim/gercek-zamanli-tuketim.xhtml) 
+
+* [DataCamp](https://www.datacamp.com/)
+
+## Code
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
