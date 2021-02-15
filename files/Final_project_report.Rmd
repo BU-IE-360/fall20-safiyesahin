@@ -602,7 +602,7 @@ ggplot() +
 
 For this next part of the study, the obtained results are summarized and the model is evaluated by comparing the actual and predicted values of the estimated days.
 
-When the established models are examined from the beginning, it can be seen that the adjusted R-squared values of the models were constantly increasing with the last model's value being 0.9463. Similarly, the residual standard error was decreasing and the lowest value was obtained with the latest model. After obtaning the hourly values by distribution, the forecasts shoul be compared with the actual values.
+When the established models are examined from the beginning, it can be seen that the adjusted R-squared values of the models were constantly increasing with the last model's value being 0.9463. Similarly, the residual standard error was decreasing and the lowest value was obtained with the latest model. After obtaining the hourly values by distribution, the forecasts should be compared with the actual values.
 
 ```{r fig.height=4, fig.width=11}
 
