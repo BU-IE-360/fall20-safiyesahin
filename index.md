@@ -1,7 +1,15 @@
 # Progress Journal
 
-## Homework 0 (28.10.2020)
-[Here](files/example_homework_0.html) is my 5 interesting examples.
+
+## Project (15.02.2021)
+[Here](https://bu-ie-360.github.io/fall20-safiyesahin/files/Final_project_report.html) is the my project report.
+
+
+## Şişecam Internship Project (01.10.2021)
+[Here](https://bu-ie-360.github.io/fall20-safiyesahin/files/pricing_analysis_italy.html) is the my project report.
+
+[Here](https://bu-ie-360.github.io/fall20-safiyesahin/files/pricing_analysis_italy.R)  is my related code.
+
 
 ## Homework 1 (20.11.2020)
 [Here](files/360-Homewrok1.html) is the visualization of my datasets.
@@ -23,9 +31,5 @@
 [Here](files/360HW4.html) is the my HW4.
 
 [Here](https://bu-ie-360.github.io/fall20-safiyesahin/files/360hw4.R)  is my related code.
-
-
-## Project (15.02.2021)
-[Here](https://bu-ie-360.github.io/fall20-safiyesahin/files/Final_project_report.html) is the my project report.
 
 

@@ -1,0 +1,226 @@
+---
+title: "Italy Pricing Analysis"
+author: "Safiye Şahin / Advisor:Onur Yavaş"
+date: "28 09 2021"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 5
+    toc_float: false
+    theme: united
+---
+## Detailed Analysis of Customers in Italy
+
+This study includes product, turnover and price analysis in order to determine the customer-based price increase for the current customers in Italy, specific to the 4 mm RZ JU, which is the product with the highest turnover in August.
+
+In this analysis, the customers whose price increase is determined are then evaluated according to product profitability, total profitability, value-added product purchases and total turnover, and it is tried to create a price increase behavior specific to the customer.
+
+
+```{r include=FALSE, warning=FALSE, message=FALSE}
+
+library(ggplot2)
+library(data.table)
+library(lubridate)
+library(ggthemes)
+library(forecast)
+library(ggcorrplot)
+library(readxl)
+dataset<- read_excel("italya_fiyat2.xlsx")
+
+```
+
+
+### Positioning of customers on the price-turnover axis without doing any customer segmentation
+
+In the graphic below, the customers are placed according to the point they are located on the axis, without being separated by any features. The average price obtained from the data of all customers for the relevant product can be seen on the chart. In addition, a corridor formed by the points on this graph using the linear regression method is also shown by yellow region.
+
+
+##### Price-Turnover Graph
+
+
+```{r echo=FALSE , warning=FALSE, message=FALSE}
+
+c1 <- ggplot(data=dataset, aes(x=ciro, y=fiyat))+
+  geom_point() +
+  geom_text(aes(label=Num),hjust=0, vjust=0,  size=2.5, color ="black" )+
+  geom_hline(yintercept= 2.7767,color= "black", linetype= "dashed")+
+  annotate("text" ,x=180000, y= 2.82, label="avg. price line", size=2.5)+
+  geom_smooth(method =lm, color="pink", fill="yellow" ,se=TRUE)+
+  ggtitle("Positioning of customersin Italy on the price-turnover axis")+
+  xlab("Turnover")+
+  ylab("Price")+
+  theme_gray()
+c1
+
+```
+ 
+
+In the linear regression method, the customers outside this area, which shows the deviation of the customers from the mean, are used in the tray of the customers for which a price increase is required.
+
+According to this chart; For customers numbered 3,5,6,22,23,24,26,31,33,34, a price increase is inevitable for this product.
+ 
+ 
+### Positioning of customers on the price-turnover axis by differentiating them according to their total turnover and their average price 
+
+In the charts below, the customers are displayed as scatter plots, and they are visualized by assigning color according to the total product average price (Value Added Product Purchase) and size according to the total turnover values. In this way, customer parameters are further customized.
+
+In the first graph, the corridor was created with linear regression method, and in the second graph, with loess regression. Loess regression, unlike linear regression, gives important data in customer analysis that increases or decreases the mean, as it changes the mean with new data included in the calculation.
+ 
+ 
+##### Linear Regression Graph
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+c4 <- ggplot(data = dataset) + 
+  geom_point(mapping = aes(x = ciro, y = fiyat, size = total_turnover, color= value_added))+
+  geom_text(aes(x = ciro, y = fiyat,label=Num),hjust=0, vjust=0,  size=2.5, color ="black" )+
+  geom_text(aes(x = ciro, y = fiyat,label=merge),hjust=-0.2, vjust=-0.1,  size=2, color ="black" )+
+  geom_hline(yintercept= 2.7767,color= "black", linetype= "dashed")+
+  annotate("text" ,x=180000, y= 2.8, label="avg. price line", size=2.5)+
+  geom_smooth(mapping = aes(x = ciro, y = fiyat), method =lm, color="orange", fill="yellow" ,se=TRUE)+
+  ggtitle("Positioning of customersin Italy on the price-turnover axis", )+
+  xlab("Turnover")+
+  ylab("Price")+
+   theme_minimal()
+c4+ scale_color_gradient(low="red", high="blue")
+
+```
+
+
+
+
+##### Loess Regression Graph
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+c2 <- ggplot(data = dataset) + 
+  geom_point(mapping = aes(x = ciro, y = fiyat, size = total_turnover, color=value_added))+
+  geom_text(aes(x = ciro, y = fiyat,label=Num),hjust=0, vjust=0,  size=2.5, color ="black" )+
+  geom_text(aes(x = ciro, y = fiyat,label=merge),hjust=-0.2, vjust=-0.1,  size=2, color ="black" )+
+  geom_smooth(mapping = aes(x = ciro, y = fiyat), color="orange", fill="yellow")+
+  geom_hline(yintercept= 2.7767,color= "black", linetype= "dashed")+
+  annotate("text" ,x=180000, y= 2.82, label="avg. price line", size=2.5)+
+  ggtitle("Positioning of customersin Italy on the price-turnover axis", )+
+  xlab("Turnover")+
+  ylab("Price")+
+  theme_minimal()
+c2 +scale_color_gradient(low="red", high="blue")
+
+
+```
+
+
+Due to the nature of the **Loess regression**, the customers numbered 5,6, 26,31,33,34,31 among the customers we identified in the **Linear regression** were excluded from the list. In addition, it has been determined that it is necessary to focus on customers numbered 3,22,23,24,33 and 34 *(customers' names can be seen in the result table below and in the graphic labels above)*.
+
+### Placing profitabilities as a line graph
+
+
+In the graphs below, the percentage profitability of product at issue and total percentage profitability of each customer (manipulated to comply with the values on the price axis) are added to the image as a line graph above the customer graph. For ease of analysis, the graph is presented as two separate graphs by dividing the x-axis into two. The %EBIT related to the product and the total %EBIT provide important data in customer evaluation.
+
+
+```{r include=FALSE, warning=FALSE, message=FALSE}
+
+c5.1 <- ggplot(data = dataset) + 
+  geom_point(mapping = aes(x = ciro, y = fiyat, size = total_turnover, color= value_added))+
+  geom_text(mapping = aes(x = ciro, y = fiyat, label=Num),hjust=0, vjust=0,  size=2.5, color ="black" )+
+  geom_line(mapping = aes(x = ciro, y = manip_rate), color="darkgreen")+
+  geom_hline(yintercept= 2.7767,color= "black", linetype= "dashed")+
+  annotate("text" ,x=30000, y= 2.82, label="ortalama fiyat", size=2.5)+
+  annotate("text" ,x=29500, y= 2.60, label="rate_of_ebit_line", size=2.5)+
+  geom_smooth(mapping = aes(x = ciro, y = fiyat), method =lm, color="orange", fill="yellow" ,se=TRUE)+
+  ggtitle("Müşterilerin Scatter Plotu ve Ağırlıklı Karlılık Oranlarının Gösterimi", )+
+  xlab("Ciro")+
+  ylab("Fiyat")+
+  xlim(0,30000)+
+  theme_minimal()
+c5.1  +scale_color_gradient(low="red", high="blue")
+
+```
+
+
+```{r include=FALSE, warning=FALSE, message=FALSE}
+c5.2 <- ggplot(data = dataset) + 
+  geom_point(mapping = aes(x = ciro, y = fiyat, size = total_turnover, color= value_added))+
+  geom_text(mapping = aes(x = ciro, y = fiyat, label=Num),hjust=0, vjust=0,  size=2.5, color ="black" )+
+  geom_line(mapping = aes(x = ciro, y = manip_rate), color="darkgreen")+
+  geom_hline(yintercept= 2.7767,color= "black", linetype= "dashed")+
+  annotate("text" ,x=10000, y= 2.82, label="ortalama fiyat", size=2.5)+
+  annotate("text" ,x=8000, y= 2.60, label="rate_of_ebit_line", size=2.5)+
+  geom_smooth(mapping = aes(x = ciro, y = fiyat), method =lm, color="orange", fill="yellow" ,se=TRUE)+
+  ggtitle("Müşterilerin Scatter Plotu ve Ağırlıklı Karlılık Oranlarının Gösterimi", )+
+  xlab("Ciro")+
+  ylab("Price")+
+  xlim(0,10000)+
+  theme_minimal()
+c5.2  +scale_color_gradient(low="red", high="blue")
+
+```
+
+
+##### Showing Total Profits and Product Profits
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+c6 <- ggplot(data = dataset) + 
+  geom_point(mapping = aes(x = ciro, y = fiyat, size = total_turnover, color= value_added))+
+  geom_text(mapping = aes(x = ciro, y = fiyat, label=Num),hjust=0, vjust=0,  size=2.3, color ="black" )+
+  geom_text(aes(x = ciro, y = fiyat,label=merge),hjust=-0.2, vjust=-0.1,  size=1.7, color ="black" )+
+  geom_line(mapping = aes(x = ciro, y = total_ebit_manip), color="darkgreen")+
+  geom_line(mapping = aes(x = ciro, y = ebit_product_manip), color="darkorange")+
+  geom_hline(yintercept= 2.7767,color= "black", linetype= "dashed")+
+  annotate("text" ,x=200000, y= 2.82, label="avg. price", size=2.5)+
+  annotate("text" ,x=200000, y= 2.25, label="product_ebit", size=2.5)+
+  annotate("text" ,x=200000, y= 2, label="total_ebit", size=2.5)+
+  geom_smooth(mapping = aes(x = ciro, y = fiyat), method =lm, color="orange", fill="yellow" ,se=TRUE)+
+  ggtitle("Positioning of customersin Italy on the price-turnover axis", )+
+  xlab("Turnover")+
+  ylab("Price")+
+  theme_minimal()
+c6 +scale_color_gradient(low="red", high="blue")
+
+c6.1 <- ggplot(data = dataset) + 
+  geom_point(mapping = aes(x = ciro, y = fiyat, size = total_turnover, color= value_added))+
+  geom_text(mapping = aes(x = ciro, y = fiyat, label=Num),hjust=0, vjust=0,  size=2.5, color ="black" )+
+  geom_text(aes(x = ciro, y = fiyat,label=merge),hjust=-0.2, vjust=-0.1,  size=2, color ="black" )+
+  geom_line(mapping = aes(x = ciro, y = total_ebit_manip), color="darkgreen")+
+  geom_line(mapping = aes(x = ciro, y = ebit_product_manip), color="darkorange")+
+  geom_hline(yintercept= 2.7767,color= "black", linetype= "dashed")+
+  annotate("text" ,x=29500, y= 2.82, label="avg. price", size=2.5)+
+  annotate("text" ,x=29500, y= 2.25, label="product_ebit", size=2.5)+
+  annotate("text" ,x=29500, y= 2, label="total_ebit", size=2.5)+
+  geom_smooth(mapping = aes(x = ciro, y = fiyat), method =lm, color="orange", fill="yellow" ,se=TRUE)+
+  ggtitle("Positioning of customersin Italy on the price-turnover axis", )+
+  xlab("Turnover")+
+  ylab("Price")+
+  xlim(0,30000)+
+  theme_minimal()
+c6.1  +scale_color_gradient(low="red", high="blue")
+```
+
+
+##### Weighted Profitability Ratio Added Version of Graph
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+c5 <- ggplot(data = dataset) + 
+  geom_point(mapping = aes(x = ciro, y = fiyat, size = total_turnover, color= value_added))+
+  geom_text(mapping = aes(x = ciro, y = fiyat, label=Num),hjust=0, vjust=0,  size=2.5, color ="black" )+
+  geom_line(mapping = aes(x = ciro, y = manip_rate), color="darkgreen")+
+  geom_hline(yintercept= 2.7767,color= "black", linetype= "dashed")+
+  annotate("text" ,x=200000, y= 2.82, label="ortalama fiyat", size=2.5)+
+  annotate("text" ,x=200000, y= 2.60, label="rate_of_ebit_line", size=2.5)+
+  geom_smooth(mapping = aes(x = ciro, y = fiyat), method =lm, color="orange", fill="yellow" ,se=TRUE)+
+  ggtitle("Positioning of customersin Italy on the price-turnover axis", )+
+  xlab("Turnover")+
+  ylab("Price")+
+  theme_minimal()
+c5 +scale_color_gradient(low="red", high="blue")
+
+
+```
+
+
+### Conclusion
+
+The results of the study can be seen in the chart below ![unchanged image](foo_italy.jpg)
